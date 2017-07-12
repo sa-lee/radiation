@@ -4,23 +4,24 @@ subtitle: "The effect of radiotherapy on the transcriptional profile of human ce
 author: "Stuart Lee, Lipi Shukla, Ramin Shayan and Matthew Ritchie"
 date: "04/07/2017"
 output: 
-  bookdown::pdf_document
-    bibliography: "radio.bib"
-    biblio-style: "plain"
+  bookdown::pdf_document2:
+    toc: false
+    number_sections: false
+    #bibliography: "radio.bib"
+    #biblio-style: "plain"
     
   
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 library(tidyverse)
 library(limma)
 library(edgeR)
 ```
 
-```{r, }
+```{r preprocess, cache=TRUE}
 load("data/counts.rda")
-str(counts)
 # correct sample PERI1_10Gy counts, this sample was split accross
 # three lanes, so we merge its counts
 peri1_lane_split <- stringr::str_detect(colnames(counts$counts),  "PERI1_10GY")
@@ -38,7 +39,7 @@ colnames(counts_mat) <- c(colnames(counts$counts)[!peri1_lane_split],
 
 # filter genes based on cpm
 gene_filter <- rowSums(edgeR::cpm(counts_mat) > 0.5) >= 2
-counts_mat <- edgeR::cpm(counts_mat)[gene_filter, ]
+counts_mat <- counts_mat[gene_filter, ]
 
 # create colData
 samples <- dplyr::data_frame(sample_names = colnames(counts_mat)) %>%
@@ -67,11 +68,20 @@ elist <- edgeR::DGEList(counts = counts_mat,
                         samples = as.data.frame(samples),
                         group = samples$group,
                         genes =  as.data.frame(geneanno_update))
+
 ```
+
+(ref:qc) **A** The variance explained by each dimension from the eigenvalues 
+of the multidimensional scaling. **B** MDS plot coloured by cell-line. **C** MDS
+plot coloured by treatment. **D** Mean-variance trend in expression.
+
+(ref:de) **A** The corrected mean-variance plot. **B** Common DE genes counts
+between and within contrasts. 
 
 # Abstract
 
 # Specifications
+
 
 +------------------------------------+-----------------------------------------+
 | Organism/cell line/tissue          |  Human, Normal Human Dermal Fibroblasts,| 
@@ -93,11 +103,11 @@ elist <- edgeR::DGEList(counts = counts_mat,
 |                                    | with additional fractionated doses of   |
 |                                    | radiotherapy.                           |
 +------------------------------------+-----------------------------------------+
-| Experimental features              |        
+| Experimental features              |                                         |
 +------------------------------------+-----------------------------------------+
-| Consent                            |  
+| Consent                            |                                         |
 +------------------------------------+-----------------------------------------+
-| Sample source location             | Melbourne, Australia
+| Sample source location             | Melbourne, Australia                    |
 +------------------------------------+-----------------------------------------+
 
 
@@ -110,7 +120,7 @@ elist <- edgeR::DGEList(counts = counts_mat,
 
 ## Sample information
 
-In this experiment, the effect radiotherapy has on gene expression was measured 
+The effect radiotherapy has on gene expression was measured 
 in 6 different human cell-lines (Normal Human Dermal Fibroblasts, Normal Human 
 Epidermal Keratinocytes, Human Pericytes, Human Microvascular Blood Endothelial 
 Cells, Human Lymphatic Endothelial Cells and Adipose Derived Stem Cells). Each 
@@ -128,18 +138,23 @@ at AGRF in Melbourne.
 
 Sequences were mapped to the _hg19_ reference genome using the _Rsubread_
 program with default settings and gene-level counts were obtained by 
-the _featureCounts_ procedure using default settings. Transcripts were anntotated
+the _featureCounts_ procedure using default settings. Transcripts were annotated
 using the _org.Hs.eg.db_ package. Analysis of the resulting counts matrix
 was performed using the _edgeR_ and _limma_ R/Bioconductor packages. First, 
 counts per million (cpm) were computed for each gene to remove differences
 caused by different library sizes. One sample, PERI1_10Gy, had its libraries 
-split accross three sequencing lanes, and its cpm values were merged together.
+split across three sequencing lanes, thus its cpm values were merged together.
 Genes were retained for further analysis if they had a baseline expression
-level of 0.5 cpm in at least 2 samples. 
+level of 0.5 cpm in at least 2 samples. Counts were normalised using the
+TMM method.
 
 ```{r normalisation}
 # perform TMM normalisation
 elist <- calcNormFactors(elist, method = "TMM")
+
+elist <- estimateDisp(elist, 
+                      design = model.matrix(~ 0 + elist$samples$group),
+                      robust=TRUE)
 
 mds_obj <- plotMDS(elist, ndim = 10, plot = FALSE) 
 
@@ -163,34 +178,37 @@ bar_plot <- ggplot(prop_variance, aes(x = dim, y = variance_explained)) +
 mds_by_cellline <- ggplot(mds_data, 
                           aes(x = V1, y = V2, colour = celltype)) +
   geom_point() +
-  xlab("Leading logFC dim 1") + ylab("Leading logFC dim 2")
+  xlab("Leading logFC dim 1") + ylab("Leading logFC dim 2") +
+  theme(legend.position = "bottom")
 
 mds_by_replicate <- ggplot(mds_data, 
                            aes(x = V1, y = V3, 
                                colour = as.factor(replicate))) + 
   geom_point() +
   guides(colour = guide_legend(title = "Replicate number")) +
-  xlab("Leading logFC dim 1") + ylab("Leading logFC dim 3")
+  xlab("Leading logFC dim 1") + ylab("Leading logFC dim 3") +
+  theme(legend.position = "bottom")
 ```
 
 During exploratory data analysis we performed multidimensional scaling (MDS) on
 the expression matrix with cpm values. The first and second dimension  explain 
 `r 100*round(prop_variance[['variance_explained']][1], 2)` per cent and
 `r 100*round(prop_variance[['variance_explained']][2], 2)` of the 
-variation in the data (figure x). There is a clear seperation between the 
+variation in the data, respectively (figure \@ref(fig:qc-figure)). 
+There is a clear separation between the 
 different cell-lines and the replicate number from the MDS plots. We model
-the heteroscedasticty using the _voomWithQualityWeights_ procedure using 
-the cell-line specific radiotherapy treatment as a main effect. Given the clear 
-difference between replicates (related to when the experiment was carried out), 
-we include a random effect for replicate in the model . 
-
-
-
-## Differential expression analysis
+the heteroscedasticty in gene counts using the _voomWithQualityWeights_ procedure 
+using  the cell-line specific radiotherapy treatment as a main effect 
+(figure \@ref(fig:qc-figure)).
+This results in down-weighting genes with systematically higher variation.
+Furthermore, given the clear difference between replicate samples observed 
+in the MDS plot, the _voomWithQualityWeights_ 
+procedure also down-weights samples that are more variable compared to others. 
 
 ```{r voom}
 design <- model.matrix(~0 + samples$group) 
 colnames(design) <- unique(samples$group)
+
 contr <-  makeContrasts(ASC_10GY-ASC_0GY, 
                         ASC_2GYx5-ASC_0GY, 
                         HMEC_10GY-HMEC_0GY, 
@@ -211,7 +229,6 @@ colnames(block) <- c("rep1", "rep2")
 vfit <- voomWithQualityWeights(elist, 
                                plot = FALSE, 
                                design = design,
-                               var.design = block,
                                save.plot = TRUE)
 
 mean_variance_df <- data_frame(mean_signal = vfit$voom.xy$x,
@@ -219,19 +236,77 @@ mean_variance_df <- data_frame(mean_signal = vfit$voom.xy$x,
                                  loess_line_x = vfit$voom.line$x,
                                  loess_line_y = vfit$voom.line$y)
 
-ggplot(mean_variance_df, aes(x = mean_signal, y = variance_signal)) +
+voom_plot <- ggplot(mean_variance_df, aes(x = mean_signal, y = variance_signal)) +
   geom_point() +
   geom_line(aes(x = loess_line_x, y = loess_line_y), colour = "blue") +
   xlab("log2(count size + 0.5)") + ylab("sqrt(standard deviation)")
 ```
 
+```{r qc-figure, fig.cap="(ref:qc)"}
+gridExtra::grid.arrange(bar_plot, 
+                        mds_by_cellline, 
+                        mds_by_replicate,
+                        voom_plot, nrow = 2, ncol = 2)
+```
+
+
+## Differential expression analysis
+```{r deg}
+lm_fit <- lmFit(vfit)
+lm_fit <- contrasts.fit(lm_fit, contrasts = contr)
+lm_fit <- eBayes(lm_fit)
+
+corrected_variance_plot <- data_frame(mean_signal = lm_fit$Amean,
+                               variance_signal = sqrt(lm_fit$sigma),
+                               trend = sqrt(lm_fit$s2.prior)) %>% 
+  ggplot(., aes(x = mean_signal, y = variance_signal)) +
+  geom_point() +
+  geom_line(aes(x = mean_signal, y = trend), colour = "blue") +
+  xlab("Average log-expression") +
+  ylab("sqrt(sigma)")
+
+dt_all <- decideTests(lm_fit, method = "global", p.value = 0.05 )
+dt_by_contrast <- decideTests(lm_fit, method = "separate", p.value = 0.05)
+
+
+# compute whether gene is sig up/down in a given contrast
+upset_data <- as.data.frame(dt_by_contrast != 0) %>% 
+  mutate_if(is.logical, as.integer)
+
+
+top_tables <- lapply(seq_len(ncol(lm_fit)), 
+                     function(i) 
+                       as_data_frame(topTable(lm_fit, 
+                                              coef = i, 
+                                              n = nrow(lm_fit))) %>%
+                       mutate(contrast = colnames(lm_fit)[i])) %>% 
+  bind_rows() %>%
+  group_by(contrast)
+  
+                                                
+                                                
+```
+
+After modelling the heteroscedasticty in the counts matrix, we used empirical
+Bayes moderation to compute more precise estimates of gene-wise variablilty
+and remove the dependence between the variance and mean expression level (figure \@ref(fig:de-figs)).
+Differential expression between all contrasts were assessed using moderated
+t-statistics using a false-discovery rate (FDR) of 5 per cent. Using this criteria,
+there were `r sum(rowSums(dt_by_contrast != 0) > 1)` differentially expressed genes 
+in at least one contrast (figure \@ref(fig:de-figs)).
+
+```{r de-figs, fig.cap="(ref:de)", out.height = "6cm", fig.show="hold"}
+corrected_variance_plot
+UpSetR::upset(upset_data,
+              nsets = ncol(upset_data),
+              nintersects = NA,
+              order.by = "freq")
+```
 
 # Results
 
-# Discussion
 
-This RNA-seq data set was generated by  from the 
-O’Brien Institute of Microsurgery.
+# Discussion
 
 
 
