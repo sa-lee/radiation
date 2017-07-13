@@ -1,16 +1,25 @@
 ---
-title: "Data in Brief"
-subtitle: "The effect of radiotherapy on the transcriptional profile of human cell lines"
-author: "Stuart Lee, Lipi Shukla, Ramin Shayan and Matthew Ritchie"
-date: "04/07/2017"
 output: 
   bookdown::pdf_document2:
     toc: false
     number_sections: false
-    #bibliography: "radio.bib"
-    #biblio-style: "plain"
-    
-  
+
+title: "Data in Brief"
+subtitle: "The effect of radiotherapy on the transcriptional profile of human cell lines"
+author: 
+- name: Stuart Lee
+  email: lee.s@wehi.edu.au
+  affiliation: Department of Econometrics and Business Statistics
+- name: Lipi Shukla
+  email: placeholder
+  affiliation: placeholder
+- name: Ramin Shayan
+  email: placeholder
+  affiliation: placeholder
+- name: Matthew Ritchie
+  email: mritchie@wehi.edu.au
+  affiliation: Molecular Medicine Division, Walter and Eliza Hall Institute
+
 ---
 
 ```{r setup, include=FALSE}
@@ -152,10 +161,6 @@ TMM method.
 # perform TMM normalisation
 elist <- calcNormFactors(elist, method = "TMM")
 
-elist <- estimateDisp(elist, 
-                      design = model.matrix(~ 0 + elist$samples$group),
-                      robust=TRUE)
-
 mds_obj <- plotMDS(elist, ndim = 10, plot = FALSE) 
 
 mds_data <- left_join(mds_obj$cmdscale.out %>% 
@@ -188,6 +193,10 @@ mds_by_replicate <- ggplot(mds_data,
   guides(colour = guide_legend(title = "Replicate number")) +
   xlab("Leading logFC dim 1") + ylab("Leading logFC dim 3") +
   theme(legend.position = "bottom")
+
+# zoom in on asc contrasts to show there is some DE
+#zoom_asc
+
 ```
 
 During exploratory data analysis we performed multidimensional scaling (MDS) on
