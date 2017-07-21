@@ -96,6 +96,13 @@ elist <- edgeR::DGEList(counts = counts_mat,
 
 ```
 
+(ref:qc) **A** The variance explained by each dimension from the eigenvalues 
+of the multidimensional scaling. **B** MDS plot coloured by cell-line. **C** MDS
+plot coloured by treatment. **D** Mean-variance trend in expression.
+
+(ref:de) **A** The corrected mean-variance plot. **B** Common DE genes counts
+between and within contrasts. 
+
 # Specifications
 
 
@@ -248,7 +255,7 @@ voom_plot <- ggplot(mean_variance_df, aes(x = mean_signal, y = variance_signal))
   xlab("log2(count size + 0.5)") + ylab("sqrt(standard deviation)")
 ```
 
-```{r qc-figure, out.width="6cm"}
+```{r qc-figure, out.height="6cm", fig.cap="(ref:qc)"}
 
 fig_cap <- "A The variance explained by each dimension from the eigenvalues of the multidimensional scaling. B MDS plot coloured by cell-line. C MDS plot coloured by treatment. D Mean-variance trend in expression."
 gridExtra::grid.arrange(bar_plot, 
@@ -312,7 +319,7 @@ top_tables <- lapply(seq_len(ncol(lm_fit)),
 
 
 
-```{r de-figs, out.height = "6cm", fig.show="hold"}
+```{r de-figs, out.height = "6cm", fig.cap="(ref:de)"}
 fig_cap <- "A The corrected mean-variance plot. B Common DE genes counts between and within contrasts."
 corrected_variance_plot
 # UpSetR::upset(upset_data,
