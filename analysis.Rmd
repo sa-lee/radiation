@@ -1,11 +1,17 @@
 ---
 output: 
-  bookdown::pdf_document2:
+  bookdown::pdf_book:
+    base_format: rticles::elsevier_article
+    keep_tex: true
     toc: false
     number_sections: false
 
-title: "Data in Brief"
-subtitle: "The effect of radiotherapy on the transcriptional profile of human cell lines"
+title: "The effect of radiotherapy on the transcriptional profile of human cell lines"
+
+abstract: |
+  placeholder
+
+
 author: 
 - name: Stuart Lee
   email: lee.s@wehi.edu.au
@@ -20,10 +26,20 @@ author:
   email: mritchie@wehi.edu.au
   affiliation: Molecular Medicine Division, Walter and Eliza Hall Institute
 
+# address:
+#   - code: Some Institute of Technology
+#     address: Department, Street, City, State, Zip
+#   - code: Another University
+#     address: Department, Street, City, State, Zip
+
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE, 
+                      message = FALSE, 
+                      warning = FALSE,
+                      fig.path = "./figures/",
+                      cache.path = "./cache/")
 library(tidyverse)
 library(limma)
 library(edgeR)
@@ -80,15 +96,6 @@ elist <- edgeR::DGEList(counts = counts_mat,
 
 ```
 
-(ref:qc) **A** The variance explained by each dimension from the eigenvalues 
-of the multidimensional scaling. **B** MDS plot coloured by cell-line. **C** MDS
-plot coloured by treatment. **D** Mean-variance trend in expression.
-
-(ref:de) **A** The corrected mean-variance plot. **B** Common DE genes counts
-between and within contrasts. 
-
-# Abstract
-
 # Specifications
 
 
@@ -100,7 +107,7 @@ between and within contrasts.
 |                                    |  Human Lymphatic Endothelial Cells and  |
 |                                    |  Adipose Derived Stem Cell              |
 +------------------------------------+-----------------------------------------+
-| Sex                                | -                                       |
+| Sex                                |  N/A                                    |
 +------------------------------------+-----------------------------------------+
 | Data format                        | Unmapped fastq and summarised counts.   |
 +------------------------------------+-----------------------------------------+
@@ -130,9 +137,10 @@ between and within contrasts.
 ## Sample information
 
 The effect radiotherapy has on gene expression was measured 
-in 6 different human cell-lines (Normal Human Dermal Fibroblasts, Normal Human 
+in 6 different human embyronic cell-lines (HMEC) consisting of 
+Normal Human Dermal Fibroblasts, Normal Human 
 Epidermal Keratinocytes, Human Pericytes, Human Microvascular Blood Endothelial 
-Cells, Human Lymphatic Endothelial Cells and Adipose Derived Stem Cells). Each 
+Cells, Human Lymphatic Endothelial Cells and Adipose Derived Stem Cells. Each 
 cell-line was subjected to a single dose of radiotherapy (10Gy) or no 
 radiotherapy (0Gy, control). For the ASC and LEC cell-lines, there was also a 
 fractionated dose (5 x 2Gy over a 48 hour period). Two replicates of each 
@@ -140,8 +148,12 @@ cell-line/treatment combination were available.
 
 ## RNA-seq sample preparation and sequencing
 
-RNA sequencing (100bp single end) was carried out on an Illumina HiSeq machine 
-at AGRF in Melbourne. 
+Standardized numbers of HMEC were plated in cell culture flasks and irradiated once 80-90% confluence was achieved. RNA extraction was undertaken at 4 hours using the QIAGEN® RNEasy Plus Universal Kit as per manufacturers instructions. Samples were then tested for 
+purity and quality control using the NanodropTM Spectrophotometer (Thermo Fischer Scientific) 
+and stored at -80 °C, until further processing. 
+Extraction of RNA at a 4-hour time point post radiotherapy-injury was utilized. 
+Each sample underwent RNA sequencing (100 base pair single end) in the Illumina
+HiSeq machine at the Australian Genome Research Facility (AGRF) in Melbourne.
 
 ## Quality-control and data preprocessing
 
@@ -199,21 +211,6 @@ mds_by_replicate <- ggplot(mds_data,
 
 ```
 
-During exploratory data analysis we performed multidimensional scaling (MDS) on
-the expression matrix with cpm values. The first and second dimension  explain 
-`r 100*round(prop_variance[['variance_explained']][1], 2)` per cent and
-`r 100*round(prop_variance[['variance_explained']][2], 2)` of the 
-variation in the data, respectively (figure \@ref(fig:qc-figure)). 
-There is a clear separation between the 
-different cell-lines and the replicate number from the MDS plots. We model
-the heteroscedasticty in gene counts using the _voomWithQualityWeights_ procedure 
-using  the cell-line specific radiotherapy treatment as a main effect 
-(figure \@ref(fig:qc-figure)).
-This results in down-weighting genes with systematically higher variation.
-Furthermore, given the clear difference between replicate samples observed 
-in the MDS plot, the _voomWithQualityWeights_ 
-procedure also down-weights samples that are more variable compared to others. 
-
 ```{r voom}
 design <- model.matrix(~0 + samples$group) 
 colnames(design) <- unique(samples$group)
@@ -251,12 +248,29 @@ voom_plot <- ggplot(mean_variance_df, aes(x = mean_signal, y = variance_signal))
   xlab("log2(count size + 0.5)") + ylab("sqrt(standard deviation)")
 ```
 
-```{r qc-figure, fig.cap="(ref:qc)"}
+```{r qc-figure, out.width="6cm"}
+
+fig_cap <- "A The variance explained by each dimension from the eigenvalues of the multidimensional scaling. B MDS plot coloured by cell-line. C MDS plot coloured by treatment. D Mean-variance trend in expression."
 gridExtra::grid.arrange(bar_plot, 
                         mds_by_cellline, 
                         mds_by_replicate,
                         voom_plot, nrow = 2, ncol = 2)
 ```
+
+During exploratory data analysis we performed multidimensional scaling (MDS) on
+the expression matrix with cpm values. The first and second dimension  explain 
+`r 100*round(prop_variance[['variance_explained']][1], 2)` per cent and
+`r 100*round(prop_variance[['variance_explained']][2], 2)` of the 
+variation in the data, respectively (figure \@ref(fig:qc-figure)). 
+There is a clear separation between the 
+different cell-lines and the replicate number from the MDS plots. We model
+the heteroscedasticty in gene counts using the _voomWithQualityWeights_ procedure 
+using  the cell-line specific radiotherapy treatment as a main effect 
+(figure \@ref(fig:qc-figure)).
+This results in down-weighting genes with systematically higher variation.
+Furthermore, given the clear difference between replicate samples observed 
+in the MDS plot, the _voomWithQualityWeights_ 
+procedure also down-weights samples that are more variable compared to others.
 
 
 ## Differential expression analysis
@@ -296,21 +310,24 @@ top_tables <- lapply(seq_len(ncol(lm_fit)),
                                                 
 ```
 
+
+
+```{r de-figs, out.height = "6cm", fig.show="hold"}
+fig_cap <- "A The corrected mean-variance plot. B Common DE genes counts between and within contrasts."
+corrected_variance_plot
+# UpSetR::upset(upset_data,
+#               nsets = ncol(upset_data),
+#               nintersects = NA,
+#               order.by = "freq")
+```
+
 After modelling the heteroscedasticty in the counts matrix, we used empirical
 Bayes moderation to compute more precise estimates of gene-wise variablilty
-and remove the dependence between the variance and mean expression level (figure \@ref(fig:de-figs)).
+and remove the dependence between the variance and mean expression level (figure \@ref(fig:de-figs).
 Differential expression between all contrasts were assessed using moderated
 t-statistics using a false-discovery rate (FDR) of 5 per cent. Using this criteria,
 there were `r sum(rowSums(dt_by_contrast != 0) > 1)` differentially expressed genes 
 in at least one contrast (figure \@ref(fig:de-figs)).
-
-```{r de-figs, fig.cap="(ref:de)", out.height = "6cm", fig.show="hold"}
-corrected_variance_plot
-UpSetR::upset(upset_data,
-              nsets = ncol(upset_data),
-              nintersects = NA,
-              order.by = "freq")
-```
 
 # Results
 
