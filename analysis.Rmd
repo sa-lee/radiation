@@ -39,7 +39,8 @@ knitr::opts_chunk$set(echo = FALSE,
                       message = FALSE, 
                       warning = FALSE,
                       fig.path = "./figures/",
-                      cache.path = "./cache/")
+                      cache.path = "./cache/", 
+                      dpi = 300)
 library(tidyverse)
 library(limma)
 library(edgeR)
@@ -98,7 +99,8 @@ elist <- edgeR::DGEList(counts = counts_mat,
 
 (ref:qc) **A** The variance explained by each dimension from the eigenvalues 
 of the multidimensional scaling. **B** MDS plot coloured by cell-line. **C** MDS
-plot coloured by treatment. **D** Mean-variance trend in expression.
+plot of the LEC contrast. There is clear differential expression between treatment.
+**D** Mean-variance trend in expression estimated by voom.
 
 (ref:de) **A** The corrected mean-variance plot. **B** Common DE genes counts
 between and within contrasts. 
@@ -107,11 +109,11 @@ between and within contrasts.
 
 
 +------------------------------------+-----------------------------------------+
-| Organism/cell line/tissue          |  Human, Normal Human Dermal Fibroblasts,| 
-|                                    |  Normal Human Epidermal Keratinocytes,  |
-|                                    |  Human Pericytes, Human Microvascular   |
+| Organism/cell line/tissue          |  Human, Normal Dermal Fibroblasts,      | 
+|                                    |  Normal Epidermal Keratinocytes,        |
+|                                    |  Pericytes,  Microvascular              |
 |                                    |  Blood Endothelial Cells,               |
-|                                    |  Human Lymphatic Endothelial Cells and  |
+|                                    |  Lymphatic Endothelial Cells and        |
 |                                    |  Adipose Derived Stem Cell              |
 +------------------------------------+-----------------------------------------+
 | Sex                                |  N/A                                    |
@@ -128,7 +130,7 @@ between and within contrasts.
 +------------------------------------+-----------------------------------------+
 | Experimental features              |                                         |
 +------------------------------------+-----------------------------------------+
-| Consent                            |                                         |
+| Consent                            | N/A                                     |
 +------------------------------------+-----------------------------------------+
 | Sample source location             | Melbourne, Australia                    |
 +------------------------------------+-----------------------------------------+
@@ -144,23 +146,27 @@ between and within contrasts.
 ## Sample information
 
 The effect radiotherapy has on gene expression was measured 
-in 6 different human embyronic cell-lines (HMEC) consisting of 
-Normal Human Dermal Fibroblasts, Normal Human 
-Epidermal Keratinocytes, Human Pericytes, Human Microvascular Blood Endothelial 
-Cells, Human Lymphatic Endothelial Cells and Adipose Derived Stem Cells. Each 
-cell-line was subjected to a single dose of radiotherapy (10Gy) or no 
-radiotherapy (0Gy, control). For the ASC and LEC cell-lines, there was also a 
-fractionated dose (5 x 2Gy over a 48 hour period). Two replicates of each 
-cell-line/treatment combination were available.
+in 6 different human embyronic cell-lines consisting of 
+normal dermal fibroblasts (NDF), normal epidermal keratinocytes (NEK), pericytes
+(PC), microvascular blood endothelial cells (MEC), lymphatic endothelial cells 
+(LEC) and adipose derived stem cells (ASC). Each cell-line was subjected to a 
+single dose of radiotherapy (10Gy) or no radiotherapy (0Gy, control). 
+For the ASC and LEC cell-lines, there was also a fractionated dose (5 x 2Gy 
+over a 48 hour period). Two replicates of each cell-line/treatment combination 
+were available.
 
-## RNA-seq sample preparation and sequencing
+## RNA-seq sample preparation and sequencing 
+^[note: this is only for MEC need to check with Lipi the same protocol was used for each cell type.]
 
-Standardized numbers of HMEC were plated in cell culture flasks and irradiated once 80-90% confluence was achieved. RNA extraction was undertaken at 4 hours using the QIAGEN® RNEasy Plus Universal Kit as per manufacturers instructions. Samples were then tested for 
-purity and quality control using the NanodropTM Spectrophotometer (Thermo Fischer Scientific) 
-and stored at -80 °C, until further processing. 
-Extraction of RNA at a 4-hour time point post radiotherapy-injury was utilized. 
-Each sample underwent RNA sequencing (100 base pair single end) in the Illumina
-HiSeq machine at the Australian Genome Research Facility (AGRF) in Melbourne.
+Standardized numbers of MEC were plated in cell culture flasks and irradiated 
+once 80-90% confluence was achieved. RNA extraction was undertaken at 4 hours 
+using the QIAGEN® RNEasy Plus Universal Kit as per manufacturers instructions. 
+Samples were then tested for purity and quality control using the Nanodrop 
+Spectrophotometer (Thermo Fischer Scientific) and stored at -80 °C, until 
+further processing.  Extraction of RNA at a 4-hour time point post 
+radiotherapy-injury was utilized.  Each sample underwent RNA sequencing 
+(100 base pair single end) in the Illumina HiSeq machine at the Australian 
+Genome Research Facility (AGRF) in Melbourne.
 
 ## Quality-control and data preprocessing
 
@@ -196,26 +202,44 @@ prop_variance <- data_frame(dim = seq_len(10),
 
 bar_plot <- ggplot(prop_variance, aes(x = dim, y = variance_explained)) +
   geom_bar(stat = "identity") + 
+  annotate("text", x = 10, y = 0.375, size =  10, label = "A") +
   scale_x_continuous(breaks = seq_len(10), labels = seq_len(10)) +
   xlab("Dimension") + ylab("Proportion of variance explained")
   
 mds_by_cellline <- ggplot(mds_data, 
-                          aes(x = V1, y = V2, colour = celltype)) +
-  geom_point() +
+                          aes(x = V1, y = V2, colour = celltype, label = group)) +
+  geom_point(stroke = 0) +
+  annotate("text", x = 4, y = 5.5, size = 10, label = "B") +
+  ggrepel::geom_text_repel(size = 2) +
   xlab("Leading logFC dim 1") + ylab("Leading logFC dim 2") +
-  theme(legend.position = "bottom")
+  guides(colour = FALSE) #+
+  # theme(legend.justification = c(1,0), legend.position=c(1,0),
+  #       legend.key.width = unit(0.1, "native"))
 
-mds_by_replicate <- ggplot(mds_data, 
-                           aes(x = V1, y = V3, 
-                               colour = as.factor(replicate))) + 
-  geom_point() +
-  guides(colour = guide_legend(title = "Replicate number")) +
-  xlab("Leading logFC dim 1") + ylab("Leading logFC dim 3") +
-  theme(legend.position = "bottom")
+# show there's DE within contrasts
+mds_lec <- left_join(plotMDS(elist[, grepl("LEC", elist$samples$group)], 
+                   ndim = 2, plot = FALSE)$cmdscale.out %>%
+  as.data.frame(.) %>% 
+  rownames_to_column(., var = "sample_names"),
+  samples)
 
-# zoom in on asc contrasts to show there is some DE
-#zoom_asc
+mds_by_lec <- ggplot(mds_lec, 
+                     aes(x = V1, y = V2, 
+                         label = group)) +
+  geom_point(stroke = 0) +
+  ggrepel::geom_label_repel(size = 2) +
+  annotate("text", x = 1.3, y = 0.8, size = 10, label = "C") +
+  xlab("Leading logFC dim 1") + ylab("Leading logFC dim 2") +
+  theme(legend.justification = c(1,0), legend.position=c(1,0))
+  
 
+# mds_by_replicate <- ggplot(mds_data, 
+#                            aes(x = V1, y = V3, 
+#                                colour = as.factor(replicate))) + 
+#   geom_point() +
+#   guides(colour = guide_legend(title = "Replicate number")) +
+#   xlab("Leading logFC dim 1") + ylab("Leading logFC dim 3") +
+#   theme(legend.position = "bottom")
 ```
 
 ```{r voom}
@@ -250,17 +274,18 @@ mean_variance_df <- data_frame(mean_signal = vfit$voom.xy$x,
                                  loess_line_y = vfit$voom.line$y)
 
 voom_plot <- ggplot(mean_variance_df, aes(x = mean_signal, y = variance_signal)) +
-  geom_point() +
+  geom_point(stroke = 0) +
   geom_line(aes(x = loess_line_x, y = loess_line_y), colour = "blue") +
+  annotate("text", x = 16, y = 1.6, size = 10, label = "D") +
   xlab("log2(count size + 0.5)") + ylab("sqrt(standard deviation)")
 ```
 
-```{r qc-figure, out.height="6cm", fig.cap="(ref:qc)"}
+```{r qc-figure, fig.cap="(ref:qc)", out.height = "14cm", fig.align="center", fig.asp=0.8}
 
 fig_cap <- "A The variance explained by each dimension from the eigenvalues of the multidimensional scaling. B MDS plot coloured by cell-line. C MDS plot coloured by treatment. D Mean-variance trend in expression."
 gridExtra::grid.arrange(bar_plot, 
                         mds_by_cellline, 
-                        mds_by_replicate,
+                        mds_by_lec,
                         voom_plot, nrow = 2, ncol = 2)
 ```
 
