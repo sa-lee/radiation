@@ -64,7 +64,7 @@ colnames(counts_mat) <- c(colnames(counts$counts)[!peri1_lane_split],
                           colnames(counts$counts)[peri1_lane_split][1L])
 
 # filter genes based on cpm
-gene_filter <- rowSums(edgeR::cpm(counts_mat) > 0.5) >= 2
+gene_filter <- rowSums(edgeR::cpm(counts_mat) > 0.5) >= 3
 counts_mat <- counts_mat[gene_filter, ]
 
 # create colData
@@ -99,7 +99,7 @@ elist <- edgeR::DGEList(counts = counts_mat,
 
 (ref:qc) **A** The variance explained by each dimension from the eigenvalues 
 of the multidimensional scaling. **B** MDS plot coloured by cell-line. **C** MDS
-plot of the LEC contrast. There is clear differential expression between treatment.
+plot of the LEC and MEC celllines. There is clear differential expression between treatment and celltype, but also confounding caused by replicate number.
 **D** Mean-variance trend in expression estimated by voom.
 
 (ref:de) **A** The corrected mean-variance plot. **B** Common DE genes counts
@@ -128,7 +128,8 @@ between and within contrasts.
 |                                    | with additional fractionated doses of   |
 |                                    | radiotherapy.                           |
 +------------------------------------+-----------------------------------------+
-| Experimental features              |                                         |
+| Experimental features              | Effect of radiotherapy at dosages of    | 
+|                                    | 0Gy versus (2Gy x 5) versus 10Gy.       |
 +------------------------------------+-----------------------------------------+
 | Consent                            | N/A                                     |
 +------------------------------------+-----------------------------------------+
@@ -180,7 +181,7 @@ caused by different library sizes. One sample, PERI1_10Gy, had its libraries
 split across three sequencing lanes, thus its cpm values were merged together.
 Genes were retained for further analysis if they had a baseline expression
 level of 0.5 cpm in at least 2 samples. Counts were normalised using the
-TMM method.
+trimmed mean of M-values (TMM) method.
 
 ```{r normalisation}
 # perform TMM normalisation
@@ -217,7 +218,7 @@ mds_by_cellline <- ggplot(mds_data,
   #       legend.key.width = unit(0.1, "native"))
 
 # show there's DE within contrasts
-mds_lec <- left_join(plotMDS(elist[, grepl("LEC", elist$samples$group)], 
+mds_lec <- left_join(plotMDS(elist[, grepl("LEC|HMEC", elist$samples$group)], 
                    ndim = 2, plot = FALSE)$cmdscale.out %>%
   as.data.frame(.) %>% 
   rownames_to_column(., var = "sample_names"),
@@ -243,8 +244,10 @@ mds_by_lec <- ggplot(mds_lec,
 ```
 
 ```{r voom}
-design <- model.matrix(~0 + samples$group) 
-colnames(design) <- unique(samples$group)
+group <- samples$group 
+replicate <- as.factor(samples$replicate)
+design <- model.matrix(~0 + group + replicate)
+colnames(design) <- c(as.character(unique(group)), "replicate")
 
 contr <-  makeContrasts(ASC_10GY-ASC_0GY, 
                         ASC_2GYx5-ASC_0GY, 
@@ -259,9 +262,6 @@ contr <-  makeContrasts(ASC_10GY-ASC_0GY,
                         LEC_0GY-HMEC_0GY, 
                         LEC_10GY-HMEC_10GY, levels=colnames(design))
 colnames(contr) <- gsub(" ", "", colnames(contr))
-
-block <- model.matrix(~ 0 + as.factor(samples$replicate))
-colnames(block) <- c("rep1", "rep2")
 
 vfit <- voomWithQualityWeights(elist, 
                                plot = FALSE, 
@@ -315,7 +315,7 @@ corrected_variance_plot <- data_frame(mean_signal = lm_fit$Amean,
                                variance_signal = sqrt(lm_fit$sigma),
                                trend = sqrt(lm_fit$s2.prior)) %>% 
   ggplot(., aes(x = mean_signal, y = variance_signal)) +
-  geom_point() +
+  geom_point(stroke = 0) +
   geom_line(aes(x = mean_signal, y = trend), colour = "blue") +
   xlab("Average log-expression") +
   ylab("sqrt(sigma)")
@@ -361,7 +361,61 @@ t-statistics using a false-discovery rate (FDR) of 5 per cent. Using this criter
 there were `r sum(rowSums(dt_by_contrast != 0) > 1)` differentially expressed genes 
 in at least one contrast (figure \@ref(fig:de-figs)).
 
+
 # Results
+
+```{r hmec}
+hmec_lec_top <- top_tables %>% 
+  mutate(updown = sign(logFC)) %>% 
+  filter(grepl("HMEC|LEC", contrast), 
+         adj.P.Val < 0.05) 
+  
+hmec_lec_top_de <- hmec_lec_top %>% 
+  count()
+hmec_updown <- hmec_lec_top %>% 
+  group_by(contrast, updown) %>% 
+  count()
+
+
+```
+Due to the large numbers of contrasts we focus on two cellines and their
+response to radiotherapy treatment: MEC and LEC. For 
+microvascular blood endothelial cells, there were `r hmec_lec_top_de %>% filter(contrast == "HMEC_10GY-HMEC_0GY") %>% pull(n)` 
+genes differentially upregulated between the full dosage (10Gy) radiotherapy 
+and control treatments.
+
+While for lymphatic endothelial cells there were 
+`r hmec_lec_top_de %>% filter(contrast == "LEC_10GY-LEC_0GY") %>% pull(n)`
+differentialy expressed genes between full dosage (10Gy) radiotherapy
+and contorl treatments. Of these 
+`r hmec_updown %>% filter(contrast == "LEC_10GY-LEC_0GY", updown == -1) %>% pull(n)`
+genes were downregulated and 
+`r hmec_updown %>% filter(contrast == "LEC_10GY-LEC_0GY", updown == 1) %>% pull(n)`
+were upregulated. There were 
+`r hmec_lec_top_de %>% filter(contrast == "LEC_2GYx5-LEC_0GY") %>% pull(n)`
+genes differentially expressed between LEC cells under fractionated dosage
+of radiotherapy and control treatment. Of these 
+`r hmec_updown %>% filter(contrast == "LEC_2GYx5-LEC_0GY", updown == -1) %>% pull(n)`
+were downregulated and 
+`r hmec_updown %>% filter(contrast == "LEC_2GYx5-LEC_0GY", updown == 1) %>% pull(n)`
+were upregulated.
+
+
+Between LEC and MEC cells under no treatment there were
+`r hmec_lec_top_de %>% filter(contrast == "LEC_0GY-HMEC_0GY") %>% pull(n)`
+differentially expressed genes, 
+`r hmec_updown %>% filter(contrast == "LEC_0GY-HMEC_0GY", updown == -1) %>% pull(n)`
+downregulated and 
+`r hmec_updown %>% filter(contrast == "LEC_0GY-HMEC_0GY", updown == 1) %>% pull(n)`
+, respectively. Between celllines under full radiotherapy treatment, there
+were `r hmec_lec_top_de %>% filter(contrast == "LEC_10GY-HMEC_10GY") %>% pull(n)`
+differentially expressed genes, 
+`r hmec_updown %>% filter(contrast == "LEC_10GY-HMEC_10GY", updown == -1) %>% pull(n)`
+downregulated and 
+`r hmec_updown %>% filter(contrast == "LEC_10GY-HMEC_10GY", updown == 1) %>% pull(n)`
+upregulated, respectively. 
+
+
 
 
 # Discussion
