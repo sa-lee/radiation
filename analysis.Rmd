@@ -95,6 +95,11 @@ elist <- edgeR::DGEList(counts = counts_mat,
                         group = samples$group,
                         genes =  as.data.frame(geneanno_update))
 
+# perform TMM normalisation
+elist <- calcNormFactors(elist, method = "TMM")
+
+readr::write_rds(elist, "./geo_submission/processed_counts.rda")
+
 ```
 
 (ref:qc) **A** The variance explained by each dimension from the eigenvalues 
@@ -184,9 +189,6 @@ level of 0.5 cpm in at least 2 samples. Counts were normalised using the
 trimmed mean of M-values (TMM) method.
 
 ```{r normalisation}
-# perform TMM normalisation
-elist <- calcNormFactors(elist, method = "TMM")
-
 mds_obj <- plotMDS(elist, ndim = 10, plot = FALSE) 
 
 mds_data <- left_join(mds_obj$cmdscale.out %>% 
