@@ -46,7 +46,7 @@ library(limma)
 library(edgeR)
 ```
 
-```{r preprocess, cache=TRUE}
+```{r preprocess-normalisation, cache=TRUE}
 load("data/counts.rda")
 # correct sample PERI1_10Gy counts, this sample was split accross
 # three lanes, so we merge its counts
@@ -188,7 +188,7 @@ Genes were retained for further analysis if they had a baseline expression
 level of 0.5 cpm in at least 2 samples. Counts were normalised using the
 trimmed mean of M-values (TMM) method.
 
-```{r normalisation}
+```{r eda}
 mds_obj <- plotMDS(elist, ndim = 10, plot = FALSE) 
 
 mds_data <- left_join(mds_obj$cmdscale.out %>% 
@@ -205,19 +205,14 @@ prop_variance <- data_frame(dim = seq_len(10),
 
 bar_plot <- ggplot(prop_variance, aes(x = dim, y = variance_explained)) +
   geom_bar(stat = "identity") + 
-  annotate("text", x = 10, y = 0.375, size =  10, label = "A") +
   scale_x_continuous(breaks = seq_len(10), labels = seq_len(10)) +
   xlab("Dimension") + ylab("Proportion of variance explained")
   
 mds_by_cellline <- ggplot(mds_data, 
                           aes(x = V1, y = V2, colour = celltype, label = group)) +
   geom_point(stroke = 0) +
-  annotate("text", x = 4, y = 5.5, size = 10, label = "B") +
-  ggrepel::geom_text_repel(size = 2) +
   xlab("Leading logFC dim 1") + ylab("Leading logFC dim 2") +
-  guides(colour = FALSE) #+
-  # theme(legend.justification = c(1,0), legend.position=c(1,0),
-  #       legend.key.width = unit(0.1, "native"))
+  theme(legend.justification = c(1,0), legend.position=c(1,0))
 
 # show there's DE within contrasts
 mds_lec <- left_join(plotMDS(elist[, grepl("LEC|HMEC", elist$samples$group)], 
@@ -228,10 +223,9 @@ mds_lec <- left_join(plotMDS(elist[, grepl("LEC|HMEC", elist$samples$group)],
 
 mds_by_lec <- ggplot(mds_lec, 
                      aes(x = V1, y = V2, 
-                         label = group)) +
+                         label = group, colour = replicate)) +
   geom_point(stroke = 0) +
   ggrepel::geom_label_repel(size = 2) +
-  annotate("text", x = 1.3, y = 0.8, size = 10, label = "C") +
   xlab("Leading logFC dim 1") + ylab("Leading logFC dim 2") +
   theme(legend.justification = c(1,0), legend.position=c(1,0))
   
@@ -246,10 +240,11 @@ mds_by_lec <- ggplot(mds_lec,
 ```
 
 ```{r voom}
-group <- samples$group 
+treatment <- as.factor(samples$treatment)
+cellline <- as.factor(samples$cellline)
 replicate <- as.factor(samples$replicate)
-design <- model.matrix(~0 + group + replicate)
-colnames(design) <- c(as.character(unique(group)), "replicate")
+design <- model.matrix(~0 + treatment + cellline + replicate)
+#colnames(design) <- c(as.character(unique(group)), "replicate")
 
 contr <-  makeContrasts(ASC_10GY-ASC_0GY, 
                         ASC_2GYx5-ASC_0GY, 
@@ -278,7 +273,6 @@ mean_variance_df <- data_frame(mean_signal = vfit$voom.xy$x,
 voom_plot <- ggplot(mean_variance_df, aes(x = mean_signal, y = variance_signal)) +
   geom_point(stroke = 0) +
   geom_line(aes(x = loess_line_x, y = loess_line_y), colour = "blue") +
-  annotate("text", x = 16, y = 1.6, size = 10, label = "D") +
   xlab("log2(count size + 0.5)") + ylab("sqrt(standard deviation)")
 ```
 
@@ -313,15 +307,6 @@ lm_fit <- lmFit(vfit)
 lm_fit <- contrasts.fit(lm_fit, contrasts = contr)
 lm_fit <- eBayes(lm_fit)
 
-corrected_variance_plot <- data_frame(mean_signal = lm_fit$Amean,
-                               variance_signal = sqrt(lm_fit$sigma),
-                               trend = sqrt(lm_fit$s2.prior)) %>% 
-  ggplot(., aes(x = mean_signal, y = variance_signal)) +
-  geom_point(stroke = 0) +
-  geom_line(aes(x = mean_signal, y = trend), colour = "blue") +
-  xlab("Average log-expression") +
-  ylab("sqrt(sigma)")
-
 dt_all <- decideTests(lm_fit, method = "global", p.value = 0.05 )
 dt_by_contrast <- decideTests(lm_fit, method = "separate", p.value = 0.05)
 
@@ -348,7 +333,6 @@ top_tables <- lapply(seq_len(ncol(lm_fit)),
 
 ```{r de-figs, out.height = "6cm", fig.cap="(ref:de)"}
 fig_cap <- "A The corrected mean-variance plot. B Common DE genes counts between and within contrasts."
-corrected_variance_plot
 # UpSetR::upset(upset_data,
 #               nsets = ncol(upset_data),
 #               nintersects = NA,
@@ -426,5 +410,10 @@ upregulated, respectively.
 
 
 
+```{r write_out_session_info}
+session_info <- devtools::session_info()
+readr::write_tsv(x = session_info$packages,
+                  path = "session_info.txt")
+```
 
 
