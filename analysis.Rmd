@@ -5,6 +5,7 @@ output:
     keep_tex: true
     toc: false
     number_sections: false
+  bookdown::word_document2: default
 
 title: "The effect of radiotherapy on the transcriptional profile of human cell lines"
 
@@ -104,11 +105,16 @@ readr::write_rds(elist, "./geo_submission/processed_counts.rda")
 
 (ref:qc) **A** The variance explained by each dimension from the eigenvalues 
 of the multidimensional scaling. **B** MDS plot coloured by cell-line. **C** MDS
-plot of the LEC and MEC celllines. There is clear differential expression between treatment and celltype, but also confounding caused by replicate number.
-**D** Mean-variance trend in expression estimated by voom.
+plot of the LEC and MEC celllines. There is clear differential expression between treatment and celltype, but also confounding caused by replicate number. **D** Mean-variance trend in expression estimated by voom.
 
-(ref:de) **A** The corrected mean-variance plot. **B** Common DE genes counts
-between and within contrasts. 
+(ref:de) Results summary from differential expression analysis. Volcano plot of
+differential gene expression between full radiotherapy treatment and controls. The
+x-axis represents the log~2 fold change in gene expression and the y-axis
+represents the negative log~10 P-value of a gene being differentially expressed.
+The dark blue points indicate a differentially expressed gene using an FDR
+of 5 per cent. Labelled genes are significantly differentially expressed genes
+with a log~2 fold change greater than 1.
+
 
 # Specifications
 
@@ -152,7 +158,7 @@ between and within contrasts.
 ## Sample information
 
 The effect radiotherapy has on gene expression was measured 
-in 6 different human embyronic cell-lines consisting of 
+in 6 different human embryonic cell-lines consisting of 
 normal dermal fibroblasts (NDF), normal epidermal keratinocytes (NEK), pericytes
 (PC), microvascular blood endothelial cells (MEC), lymphatic endothelial cells 
 (LEC) and adipose derived stem cells (ASC). Each cell-line was subjected to a 
@@ -162,7 +168,8 @@ over a 48 hour period). Two replicates of each cell-line/treatment combination
 were available.
 
 ## RNA-seq sample preparation and sequencing 
-^[note: this is only for MEC need to check with Lipi the same protocol was used for each cell type.]
+^[note: this is only for MEC need to check with Lipi 
+the same protocol was used for each cell type. Lipi to write section.]
 
 Standardized numbers of MEC were plated in cell culture flasks and irradiated 
 once 80-90% confluence was achieved. RNA extraction was undertaken at 4 hours 
@@ -210,9 +217,10 @@ bar_plot <- ggplot(prop_variance, aes(x = dim, y = variance_explained)) +
   
 mds_by_cellline <- ggplot(mds_data, 
                           aes(x = V1, y = V2, colour = celltype, label = group)) +
-  geom_point(stroke = 0) +
+  geom_point(stroke = 0) + 
   xlab("Leading logFC dim 1") + ylab("Leading logFC dim 2") +
-  theme(legend.justification = c(1,0), legend.position=c(1,0))
+  guides(colour = guide_legend("Cell line")) + 
+  theme(legend.position="bottom")
 
 # show there's DE within contrasts
 mds_lec <- left_join(plotMDS(elist[, grepl("LEC|HMEC", elist$samples$group)], 
@@ -223,11 +231,12 @@ mds_lec <- left_join(plotMDS(elist[, grepl("LEC|HMEC", elist$samples$group)],
 
 mds_by_lec <- ggplot(mds_lec, 
                      aes(x = V1, y = V2, 
-                         label = group, colour = replicate)) +
+                         label = group, colour = as.factor(replicate))) +
   geom_point(stroke = 0) +
   ggrepel::geom_label_repel(size = 2) +
+  guides(colour = guide_legend("replicate number")) +
   xlab("Leading logFC dim 1") + ylab("Leading logFC dim 2") +
-  theme(legend.justification = c(1,0), legend.position=c(1,0))
+  theme(legend.position = "bottom")
   
 
 # mds_by_replicate <- ggplot(mds_data, 
@@ -241,23 +250,18 @@ mds_by_lec <- ggplot(mds_lec,
 
 ```{r voom}
 treatment <- as.factor(samples$treatment)
-cellline <- as.factor(samples$cellline)
+celltype <- as.factor(samples$celltype)
 replicate <- as.factor(samples$replicate)
-design <- model.matrix(~0 + treatment + cellline + replicate)
+design <- model.matrix(~0 + treatment + celltype + replicate)
 #colnames(design) <- c(as.character(unique(group)), "replicate")
 
-contr <-  makeContrasts(ASC_10GY-ASC_0GY, 
-                        ASC_2GYx5-ASC_0GY, 
-                        HMEC_10GY-HMEC_0GY, 
-                        LEC_10GY-LEC_0GY, 
-                        LEC_2GYx5-LEC_0GY, 
-                        NHDF_10GY-NHDF_0GY,
-                        NHEK_10GY-NHEK_0GY, 
-                        PERI_10GY-PERI_0GY,
-                        PERI_0GY-ASC_0GY, 
-                        PERI_10GY-ASC_10GY,
-                        LEC_0GY-HMEC_0GY, 
-                        LEC_10GY-HMEC_10GY, levels=colnames(design))
+contr <-  makeContrasts(treatment2GYx5-treatment0GY,
+                        treatment10GY-treatment2GYx5,
+                        treatment10GY-treatment0GY,
+                        levels = colnames(design))
+                        
+                        
+  
 colnames(contr) <- gsub(" ", "", colnames(contr))
 
 vfit <- voomWithQualityWeights(elist, 
@@ -278,7 +282,9 @@ voom_plot <- ggplot(mean_variance_df, aes(x = mean_signal, y = variance_signal))
 
 ```{r qc-figure, fig.cap="(ref:qc)", out.height = "14cm", fig.align="center", fig.asp=0.8}
 
-fig_cap <- "A The variance explained by each dimension from the eigenvalues of the multidimensional scaling. B MDS plot coloured by cell-line. C MDS plot coloured by treatment. D Mean-variance trend in expression."
+fig_cap <- "A The variance explained by each dimension from the eigenvalues of 
+the multidimensional scaling. B MDS plot coloured by cell-line. 
+C MDS plot coloured by treatment. D Mean-variance trend in expression."
 gridExtra::grid.arrange(bar_plot, 
                         mds_by_cellline, 
                         mds_by_lec,
@@ -293,8 +299,8 @@ variation in the data, respectively (figure \@ref(fig:qc-figure)).
 There is a clear separation between the 
 different cell-lines and the replicate number from the MDS plots. We model
 the heteroscedasticty in gene counts using the _voomWithQualityWeights_ procedure 
-using  the cell-line specific radiotherapy treatment as a main effect 
-(figure \@ref(fig:qc-figure)).
+the radiotherapy treatment as a main effect 
+(figure \@ref(fig:qc-figure)) and adjusting for cell-line and replicate number.
 This results in down-weighting genes with systematically higher variation.
 Furthermore, given the clear difference between replicate samples observed 
 in the MDS plot, the _voomWithQualityWeights_ 
@@ -304,16 +310,21 @@ procedure also down-weights samples that are more variable compared to others.
 ## Differential expression analysis
 ```{r deg}
 lm_fit <- lmFit(vfit)
-lm_fit <- contrasts.fit(lm_fit, contrasts = contr)
+ lm_fit <- contrasts.fit(lm_fit, contrasts = contr)
 lm_fit <- eBayes(lm_fit)
+
+corrected_variance_plot <- data_frame(mean_signal = lm_fit$Amean,
+                                      variance_signal = sqrt(lm_fit$sigma),
+                                      trend = sqrt(lm_fit$s2.prior)) %>% 
+  ggplot(., aes(x = mean_signal, y = variance_signal)) +
+  geom_point() +
+  geom_line(aes(x = mean_signal, y = trend), colour = "blue") +
+  xlab("Average log-expression") +
+  ylab("sqrt(sigma)")
+
 
 dt_all <- decideTests(lm_fit, method = "global", p.value = 0.05 )
 dt_by_contrast <- decideTests(lm_fit, method = "separate", p.value = 0.05)
-
-
-# compute whether gene is sig up/down in a given contrast
-upset_data <- as.data.frame(dt_by_contrast != 0) %>% 
-  mutate_if(is.logical, as.integer)
 
 
 top_tables <- lapply(seq_len(ncol(lm_fit)), 
@@ -323,7 +334,8 @@ top_tables <- lapply(seq_len(ncol(lm_fit)),
                                               n = nrow(lm_fit))) %>%
                        mutate(contrast = colnames(lm_fit)[i])) %>% 
   bind_rows() %>%
-  group_by(contrast)
+  group_by(contrast) 
+  
   
                                                 
                                                 
@@ -331,83 +343,82 @@ top_tables <- lapply(seq_len(ncol(lm_fit)),
 
 
 
-```{r de-figs, out.height = "6cm", fig.cap="(ref:de)"}
-fig_cap <- "A The corrected mean-variance plot. B Common DE genes counts between and within contrasts."
-# UpSetR::upset(upset_data,
-#               nsets = ncol(upset_data),
-#               nintersects = NA,
-#               order.by = "freq")
+```{r de-figs, fig.align = "center", fig.cap="(ref:de)"}
+
+rvc_summary <- top_tables %>% 
+  filter(contrast == "treatment10GY-treatment0GY") %>%
+  mutate(de = as.factor(adj.P.Val < 0.05)) 
+
+large_FC <- rvc_summary %>% filter(abs(logFC) > 1.0, adj.P.Val < 0.05)
+volcano_rvc <- ggplot(data = rvc_summary, aes(x = logFC, y = -log10(P.Value), colour = de)) +
+  geom_point(stroke = 0) +
+  ggrepel::geom_text_repel(data = large_FC, 
+                           aes(x = logFC, y = -log10(P.Value), 
+                               colour = de, label = Symbols),
+                           size = 4) +
+  scale_color_brewer(type = "qual", palette = 3) +
+  guides(colour = FALSE) + xlab("log Fold Change") + ylab("-log10(P Value)")
+
+volcano_rvc
 ```
 
+As we are interested in the global consequences of radiotherapy across all
+cell-lines, we used limma to fit a linear model on the counts matrix and
+estimate coefficients for the effect between te three radiotherapy treatments.
 After modelling the heteroscedasticty in the counts matrix, we used empirical
-Bayes moderation to compute more precise estimates of gene-wise variablilty
-and remove the dependence between the variance and mean expression level (figure \@ref(fig:de-figs).
-Differential expression between all contrasts were assessed using moderated
+Bayes moderation to compute more precise estimates of gene-wise variability
+and remove the dependence between the variance and mean expression level.
+Differential expression between all contrasts 
+(10Gy vs. control, 10Gy vs. 2Gyx5, and 2GYx5 vs 0Gy) were assessed using moderated
 t-statistics using a false-discovery rate (FDR) of 5 per cent. Using this criteria,
-there were `r sum(rowSums(dt_by_contrast != 0) > 1)` differentially expressed genes 
-in at least one contrast (figure \@ref(fig:de-figs)).
+there were `r sum(rowSums(dt_by_contrast != 0) > 1)` total differentially 
+expressed genes in at least one contrast.
 
 
 # Results
 
-```{r hmec}
-hmec_lec_top <- top_tables %>% 
+```{r global-rt}
+top_list_by_contrast <- top_tables %>% 
   mutate(updown = sign(logFC)) %>% 
-  filter(grepl("HMEC|LEC", contrast), 
-         adj.P.Val < 0.05) 
+  filter(adj.P.Val < 0.05) 
   
-hmec_lec_top_de <- hmec_lec_top %>% 
+top_de_all <-top_list_by_contrast %>% 
   count()
-hmec_updown <- hmec_lec_top %>% 
+top_de_updown <- top_list_by_contrast %>% 
   group_by(contrast, updown) %>% 
   count()
 
 
 ```
-Due to the large numbers of contrasts we focus on two cellines and their
-response to radiotherapy treatment: MEC and LEC. For 
-microvascular blood endothelial cells, there were `r hmec_lec_top_de %>% filter(contrast == "HMEC_10GY-HMEC_0GY") %>% pull(n)` 
-genes differentially upregulated between the full dosage (10Gy) radiotherapy 
-and control treatments.
 
-While for lymphatic endothelial cells there were 
-`r hmec_lec_top_de %>% filter(contrast == "LEC_10GY-LEC_0GY") %>% pull(n)`
-differentialy expressed genes between full dosage (10Gy) radiotherapy
-and contorl treatments. Of these 
-`r hmec_updown %>% filter(contrast == "LEC_10GY-LEC_0GY", updown == -1) %>% pull(n)`
-genes were downregulated and 
-`r hmec_updown %>% filter(contrast == "LEC_10GY-LEC_0GY", updown == 1) %>% pull(n)`
-were upregulated. There were 
-`r hmec_lec_top_de %>% filter(contrast == "LEC_2GYx5-LEC_0GY") %>% pull(n)`
-genes differentially expressed between LEC cells under fractionated dosage
-of radiotherapy and control treatment. Of these 
-`r hmec_updown %>% filter(contrast == "LEC_2GYx5-LEC_0GY", updown == -1) %>% pull(n)`
-were downregulated and 
-`r hmec_updown %>% filter(contrast == "LEC_2GYx5-LEC_0GY", updown == 1) %>% pull(n)`
-were upregulated.
+There were no differentially expressed genes between cell lines treated
+with fractionated doses of radiotherapy and the full radiotherapy. We note
+that only two cell lines were subject to fractionated doses, which is why
+we may not be seeing an effect.
 
+On the other hand, we do find differential expression between the cell-lines
+treated with fractionated dosage of radiotherapy and the control treatment.
+There were `r top_de_all$n[1]` differentially expressed genes, with 
+`r top_de_updown$n[3]` genes down regulated in the control cell lines and
+`r top_de_updown$n[2]` genes upregulated in the fractionated dosage group. Of
+these the differentially expressed gene with the largest fold change was CHAC1
+a gene that is upregulated in the fractionated dosage cell lines and is associate
+with increased risk of breast cancer recurrence.
+However, since there are only two cell lines that received fractionated 
+dosages, these differentially expressed genes could be the result of cell-line
+differences rather than treatment effects. 
 
-Between LEC and MEC cells under no treatment there were
-`r hmec_lec_top_de %>% filter(contrast == "LEC_0GY-HMEC_0GY") %>% pull(n)`
-differentially expressed genes, 
-`r hmec_updown %>% filter(contrast == "LEC_0GY-HMEC_0GY", updown == -1) %>% pull(n)`
-downregulated and 
-`r hmec_updown %>% filter(contrast == "LEC_0GY-HMEC_0GY", updown == 1) %>% pull(n)`
-, respectively. Between celllines under full radiotherapy treatment, there
-were `r hmec_lec_top_de %>% filter(contrast == "LEC_10GY-HMEC_10GY") %>% pull(n)`
-differentially expressed genes, 
-`r hmec_updown %>% filter(contrast == "LEC_10GY-HMEC_10GY", updown == -1) %>% pull(n)`
-downregulated and 
-`r hmec_updown %>% filter(contrast == "LEC_10GY-HMEC_10GY", updown == 1) %>% pull(n)`
-upregulated, respectively. 
-
-
-
+Between full radiotherapy and control treatments, there were `r top_de_all$n[1]`
+differentially expressed genes. Of these `r top_de_updown$n[1]` genes were down
+regulated in the control cell lines, while `r top_de_updown$n[2]` upregulated in
+when exposed to full-dosage radiotherapy treatments (figure \@ref(fig:de-figs)). 
+The two differentially expressed genes with the highest log fold changes were SELE (E-selectin)
+and ATF3 (activating transcription factor 3) . These genes were both upregulated
+in the treatment group, and the former SELE, is only expressed in LECs and
+plays a role in inflammation. Similarly, ATF3 is known to be activated
+when a tissue is under stress. 
 
 # Discussion
-
-
-
 
 
 ```{r write_out_session_info}
