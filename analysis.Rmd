@@ -336,8 +336,16 @@ top_tables <- lapply(seq_len(ncol(lm_fit)),
   bind_rows() %>%
   group_by(contrast) 
   
-  
-                                                
+  samplenms = paste(celltype, treatment, replicate, sep="_")
+group = as.factor(celltype)
+irrad.cols = as.factor(treatment)
+levels(irrad.cols) = c("black", "red", "blue")
+irrad.cols = as.character(irrad.cols)
+
+library(Glimma)
+glXYPlot(x=lm_fit$coef[,3], y=lm_fit$lods[,3], counts=vfit$E, 
+         samples=samplenms, groups=group, status=dt_by_contrast[,3], 
+         anno=vfit$genes[,-c(2,5)], sample.cols=irrad.cols, html="volcano-10Gyvs0Gy")
                                                 
 ```
 
@@ -398,9 +406,9 @@ we may not be seeing an effect.
 
 On the other hand, we do find differential expression between the cell-lines
 treated with fractionated dosage of radiotherapy and the control treatment.
-There were `r top_de_all$n[1]` differentially expressed genes, with 
+There were `r top_de_all$n[2]` differentially expressed genes, with 
 `r top_de_updown$n[3]` genes down regulated in the control cell lines and
-`r top_de_updown$n[2]` genes upregulated in the fractionated dosage group. Of
+`r top_de_updown$n[4]` genes upregulated in the fractionated dosage group. Of
 these the differentially expressed gene with the largest fold change was CHAC1
 a gene that is upregulated in the fractionated dosage cell lines and is associate
 with increased risk of breast cancer recurrence.
