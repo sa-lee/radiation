@@ -1,18 +1,14 @@
 ---
 output: 
+  bookdown::word_document2: default
   bookdown::pdf_book:
     base_format: rticles::elsevier_article
     keep_tex: true
     toc: false
     number_sections: false
-  bookdown::word_document2: default
-
 title: "The effect of radiotherapy on the transcriptional profile of human cell lines"
-
 abstract: |
   placeholder
-
-
 author: 
 - name: Stuart Lee
   email: lee.s@wehi.edu.au
@@ -26,13 +22,11 @@ author:
 - name: Matthew Ritchie
   email: mritchie@wehi.edu.au
   affiliation: Molecular Medicine Division, Walter and Eliza Hall Institute
-
 # address:
 #   - code: Some Institute of Technology
 #     address: Department, Street, City, State, Zip
 #   - code: Another University
 #     address: Department, Street, City, State, Zip
-
 ---
 
 ```{r setup, include=FALSE}
