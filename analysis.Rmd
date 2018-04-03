@@ -304,7 +304,7 @@ procedure also down-weights samples that are more variable compared to others.
 ## Differential expression analysis
 ```{r deg}
 lm_fit <- lmFit(vfit)
- lm_fit <- contrasts.fit(lm_fit, contrasts = contr)
+lm_fit <- contrasts.fit(lm_fit, contrasts = contr)
 lm_fit <- eBayes(lm_fit)
 
 corrected_variance_plot <- data_frame(mean_signal = lm_fit$Amean,
@@ -330,7 +330,14 @@ top_tables <- lapply(seq_len(ncol(lm_fit)),
   bind_rows() %>%
   group_by(contrast) 
   
-  samplenms = paste(celltype, treatment, replicate, sep="_")
+top_tables %>% 
+  select(Chr, GeneID, Symbols, GeneName, contrast, logFC, adj.P.Val) %>% 
+  arrange(adj.P.Val, desc(abs(logFC)), .by_group = TRUE) %>% 
+  write_csv("top_tables_by_contrast.csv")
+```
+
+```{r glimma-plots, eval = FALSE}
+samplenms = paste(celltype, treatment, replicate, sep="_")
 group = as.factor(celltype)
 irrad.cols = as.factor(treatment)
 levels(irrad.cols) = c("black", "red", "blue")
@@ -342,7 +349,6 @@ glXYPlot(x=lm_fit$coef[,3], y=lm_fit$lods[,3], counts=vfit$E,
          anno=vfit$genes[,-c(2,5)], sample.cols=irrad.cols, html="volcano-10Gyvs0Gy")
                                                 
 ```
-
 
 
 ```{r de-figs, fig.align = "center", fig.cap="(ref:de)"}
