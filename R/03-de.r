@@ -109,3 +109,17 @@ lec_tables %>%
   filter(grepl("CCL2$", Symbols)) %>%
   select(contrast, 1:5, logFC, t, adj.P.Val)
 
+
+# gene set analysis
+
+gs_res <- goana(lec_fit, coef = 1)
+
+write.csv(gs_res, file = here::here("results", "go_lec10gy-lec0gy.csv"))
+
+topGO(lec_fit)
+
+kg_res <- kegga(lec_fit, coef = 1)
+write.csv(kg_res, file = here::here("results", "kegga_lec10gy-lec0gy.csv"))
+
+
+topKEGG(kg_res)
