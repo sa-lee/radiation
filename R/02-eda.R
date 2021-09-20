@@ -117,6 +117,8 @@ pl <- wrap_plots(
   tag_level = "new") +
   plot_annotation(tag_levels = "A") 
 
-pdf(here::here("figures", "figure1.pdf"), height=5.5, width=7)
+#ggsave(here::here("figures", "figure-01.png"), pl)
+
+pdf(here::here("figures", "figure-01.pdf"), height=5.5, width=7)
 pl
 dev.off()
