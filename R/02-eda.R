@@ -37,6 +37,7 @@ bar_plot <- ggplot(prop_variance, aes(x = dim, y = variance_explained)) +
   xlab("Dimension") + ylab("Proportion variance explained") +
   theme(axis.title.y = element_text(size = 8))
 
+mds_data[mds_data$celltype=="ASC","celltype"] <- "ADSC"
 mds_by_cellline <- ggplot(mds_data, 
                           aes(x = V1, y = V2, colour = celltype, label = group)) +
   geom_point(stroke = 0) + 
@@ -47,19 +48,22 @@ mds_by_cellline <- ggplot(mds_data,
         axis.title.x = element_text(size = 8),
         axis.title.y = element_text(size = 8),
         legend.title = element_text(size = 8),
-        legend.text = element_text(size = 6))
+        legend.text = element_text(size = 7))
+
+mds_lec$replicate <- as.factor(mds_lec$replicate)
+levels(mds_lec$replicate)[levels(mds_lec$replicate)=="1"] <- "Replicate number 1"
+levels(mds_lec$replicate)[levels(mds_lec$replicate)=="2"] <- "Replicate number 2"
 
 mds_by_lec <- ggplot(mds_lec, 
-                     aes(x = V1, y = V2, label = group, colour = as.factor(replicate))) +
+                     aes(x = V1, y = V2, label = group, colour = replicate)) +
   geom_point(stroke = 0) +
-  ggrepel::geom_label_repel(size = 2) +
-  guides(colour = guide_legend("replicate number")) +
+  ggrepel::geom_label_repel(size = 2, show.legend = FALSE) +
   xlab("Leading logFC dim 1") + ylab("Leading logFC dim 2") +
   theme(legend.position = "bottom", 
         axis.title.y = element_text(size = 8),
         axis.title.x = element_text(size = 8),
-        legend.title = element_text(size = 8),
-        legend.text = element_text(size = 6))
+        legend.title = element_blank(),
+        legend.text = element_text(size = 6.25))
 
 # voom
 treatment <- as.factor(elist$samples$treatment)
@@ -89,14 +93,14 @@ readr::write_rds(vfit,
                  here::here("data", "voom.rds"))
 
 mean_variance_df <- tibble(mean_signal = vfit$voom.xy$x,
-                               variance_signal = vfit$voom.xy$y,
-                               loess_line_x = vfit$voom.line$x,
-                               loess_line_y = vfit$voom.line$y)
+                           variance_signal = vfit$voom.xy$y,
+                           loess_line_x = vfit$voom.line$x,
+                           loess_line_y = vfit$voom.line$y)
 
 
 
 voom_plot <- ggplot(mean_variance_df, aes(x = mean_signal, y = variance_signal)) +
-  geom_point(stroke = 0) +
+  geom_point(stroke = 0, size=0.5) +
   geom_line(aes(x = loess_line_x, y = loess_line_y), colour = "blue") +
   xlab("log2(count size + 0.5)") + ylab("sqrt(standard deviation)") +
   theme(axis.title.y = element_text(size = 8),
@@ -113,6 +117,6 @@ pl <- wrap_plots(
   tag_level = "new") +
   plot_annotation(tag_levels = "A") 
 
-
-
-ggsave(here::here("figures", "figure-01.png"), pl)
+pdf(here::here("figures", "figure1.pdf"), height=5.5, width=7)
+pl
+dev.off()
